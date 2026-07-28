@@ -1,0 +1,52 @@
+name: Rebuild minimal geodata
+on:
+  schedule:
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install geoview
+        run: go install github.com/snowie2000/geoview@latest
+
+      - name: Download latest runetfreedom geodata
+        run: |
+          curl -Lo geosite-full.dat https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat
+          curl -Lo geoip-full.dat https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geoip.dat
+
+      - name: Extract needed categories
+        run: |
+          ~/go/bin/geoview -type geosite -action convert \
+            -input geosite-full.dat \
+            -list private,category-ru,category-gov-ru \
+            -output geosite.dat -format geosite
+
+          ~/go/bin/geoview -type geoip -action convert \
+            -input geoip-full.dat \
+            -list private,ru \
+            -output geoip.dat -format geoip
+
+      - name: Report sizes
+        run: ls -lh geosite-full.dat geosite.dat geoip-full.dat geoip.dat
+
+      - name: Commit and push
+        run: |
+          git config user.name "geodata-bot"
+          git config user.email "bot@noreply.github.com"
+          git add geosite.dat geoip.dat
+          git commit -m "Rebuild minimal geodata $(date +%F)" || echo "No changes to commit"
+          git push
+
+      - name: Tag release
+        run: |
+          TAG=$(date +%Y%m%d)
+          git tag "$TAG" 2>/dev/null || echo "Tag $TAG already exists, skipping"
+          git push origin "$TAG" 2>/dev/null || echo "Tag already pushed"
