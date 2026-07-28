@@ -7,6 +7,8 @@ on:
 jobs:
   rebuild:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -16,6 +18,9 @@ jobs:
 
       - name: Install geoview
         run: go install github.com/snowie2000/geoview@latest
+
+      - name: Set tag name
+        run: echo "TAG=$(date +%Y%m%d)" >> $GITHUB_ENV
 
       - name: Download latest runetfreedom geodata
         run: |
@@ -28,7 +33,6 @@ jobs:
             -input geosite-full.dat \
             -list private,category-ru,category-gov-ru \
             -output geosite.dat -format geosite
-
           ~/go/bin/geoview -type geoip -action convert \
             -input geoip-full.dat \
             -list private,ru \
@@ -42,11 +46,13 @@ jobs:
           git config user.name "geodata-bot"
           git config user.email "bot@noreply.github.com"
           git add geosite.dat geoip.dat
-          git commit -m "Rebuild minimal geodata $(date +%F)" || echo "No changes to commit"
+          git commit -m "Rebuild minimal geodata ${{ env.TAG }}" || echo "No changes to commit"
           git push
 
-      - name: Tag release
-        run: |
-          TAG=$(date +%Y%m%d)
-          git tag "$TAG" 2>/dev/null || echo "Tag $TAG already exists, skipping"
-          git push origin "$TAG" 2>/dev/null || echo "Tag already pushed"
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          files: |
+            geosite.dat
+            geoip.dat
