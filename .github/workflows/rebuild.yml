@@ -31,7 +31,7 @@ jobs:
         run: |
           ~/go/bin/geoview -type geosite -action convert \
             -input geosite-full.dat \
-            -list private,category-ru,category-gov-ru \
+            -list private,category-ru,category-gov-ru,ru-blocked \
             -output geosite.dat -format geosite
           ~/go/bin/geoview -type geoip -action convert \
             -input geoip-full.dat \
