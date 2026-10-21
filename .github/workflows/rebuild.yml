@@ -14,7 +14,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.25'
 
       - name: Install geoview
         run: go install github.com/snowie2000/geoview@latest
@@ -24,30 +24,28 @@ jobs:
 
       - name: Download latest runetfreedom geodata
         run: |
-          curl -Lo geosite-full.dat https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat
-          curl -Lo geoip-full.dat https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geoip.dat
+          curl -fLo geosite-full.dat https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat
+          curl -fLo geoip-full.dat https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geoip.dat
 
       - name: Extract needed categories
         run: |
           ~/go/bin/geoview -type geosite -action convert \
             -input geosite-full.dat \
-            -list private,category-ru,category-gov-ru,ru-blocked \
+            -list private,category-ru,category-gov-ru,antifilter-download-community \
             -output geosite.dat -format geosite
           ~/go/bin/geoview -type geoip -action convert \
             -input geoip-full.dat \
             -list private,ru \
             -output geoip.dat -format geoip
 
-      - name: Report sizes
-        run: ls -lh geosite-full.dat geosite.dat geoip-full.dat geoip.dat
 
-      - name: Commit and push
+      - name: Sanity check
         run: |
-          git config user.name "geodata-bot"
-          git config user.email "bot@noreply.github.com"
-          git add geosite.dat geoip.dat
-          git commit -m "Rebuild minimal geodata ${{ env.TAG }}" || echo "No changes to commit"
-          git push
+          for c in PRIVATE CATEGORY-RU CATEGORY-GOV-RU ANTIFILTER-DOWNLOAD-COMMUNITY; do
+            grep -aq "$c" geosite.dat || { echo "::error::category $c missing in geosite.dat"; exit 1; }
+          done
+          test "$(stat -c%s geoip.dat)" -gt 300000 || { echo "::error::geoip.dat too small"; exit 1; }
+
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -56,3 +54,12 @@ jobs:
           files: |
             geosite.dat
             geoip.dat
+
+
+      - name: Commit and push
+        run: |
+          git config user.name "geodata-bot"
+          git config user.email "bot@noreply.github.com"
+          git add geosite.dat geoip.dat
+          git commit -m "Rebuild minimal geodata ${{ env.TAG }}" || echo "No changes to commit"
+          git push
